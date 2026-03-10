@@ -4,11 +4,17 @@ const manifest = require("./manifest");
 
 const builder = new addonBuilder(manifest);
 
+const axiosConfig = {
+    headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+};
+
 // Helper function to get localized name from Cinemeta
 async function getCinemetaTitle(type, id) {
     try {
         const url = `https://v3-cinemeta.strem.io/meta/${type}/${id}.json`;
-        const response = await axios.get(url);
+        const response = await axios.get(url, axiosConfig);
         if (response.data && response.data.meta && response.data.meta.name) {
             return response.data.meta.name;
         }
@@ -22,7 +28,7 @@ async function getCinemetaTitle(type, id) {
 async function searchHellspy(query) {
     try {
         const url = `https://api.hellspy.to/gw/search?query=${encodeURIComponent(query)}&offset=0&limit=15`;
-        const response = await axios.get(url);
+        const response = await axios.get(url, axiosConfig);
 
         if (response.data && response.data.items) {
             return response.data.items;
