@@ -40,7 +40,7 @@ async function searchHellspy(query) {
 }
 
 // Stream handler
-builder.defineStreamHandler(async ({ type, id }, { req }) => {
+builder.defineStreamHandler(async ({ type, id }) => {
     console.log(`[Stream Request] Type: ${type}, ID: ${id}`);
 
     // Zjistíme URL adresu, odkud požadavek reálně přišel (např. host z Renderu)
