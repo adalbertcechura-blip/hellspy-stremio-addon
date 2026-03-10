@@ -40,52 +40,46 @@ async function searchHellspy(query) {
 }
 
 // Stream handler
-builder.defineStreamHandler(async ({ type, id }) => {
+builder.defineStreamHandler(async ({ type, id }, { req }) => {
     console.log(`[Stream Request] Type: ${type}, ID: ${id}`);
 
-    // For series, id is like tt1234567:1:2 (imdbID:season:episode)
-    const imdbId = id.split(":")[0];
+    // Zjistíme URL adresu, odkud požadavek reálně přišel (např. host z Renderu)
+    let baseUrl = process.env.BASE_URL || "http://127.0.0.1:7000";
 
+    const imdbId = id.split(":")[0];
     const title = await getCinemetaTitle(type, imdbId);
+
     if (!title) {
-        return Promise.resolve({ streams: [] });
+        return Promise.resolve({ streams: [{ name: "Chyba", description: "Cinemeta nevrátila název titulu.\\nPravděpodobně je Render server blokován.", url: "#" }] });
     }
 
-    console.log(`[Cinemeta Resolved] ID: ${imdbId} -> Title: ${title}`);
-
-    // We will search for the title and maybe append CZ/SK or season/episode for series
     let searchQuery = title;
     if (type === "series") {
         const season = id.split(":")[1];
         const episode = id.split(":")[2];
-        const seasonStr = season.padStart(2, "0");
-        const episodeStr = episode.padStart(2, "0");
-        searchQuery += ` S${seasonStr}E${episodeStr}`;
+        searchQuery += ` S${season.padStart(2, "0")}E${episode.padStart(2, "0")}`;
     }
 
-    console.log(`[Hellspy Search] Query: ${searchQuery}`);
-    const results = await searchHellspy(searchQuery);
+    try {
+        const results = await searchHellspy(searchQuery);
 
-    const streams = results.map(item => {
-        // Velikost v MB
-        const sizeMb = (item.size / (1024 * 1024)).toFixed(0);
+        if (!results || results.length === 0) {
+            return Promise.resolve({ streams: [{ name: "Hellspy", description: "Zadaný název '" + searchQuery + "' nenalezl žádné výsledky.", url: "#" }] });
+        }
 
-        // Vlastní přesměrovávací endpoint - bude spuštěn na stejném serveru jako addon
-        // Předpokládáme, že public URL bude nastavena v appce (zatím použijeme localhost jako mock, nebo relativní cestu ve Stremiu nelze použít, musíme uvést full proxy URL)
-        // Express.js doplní hlavičky z req.host 
+        const streams = results.map(item => {
+            const sizeMb = (item.size / (1024 * 1024)).toFixed(0);
+            return {
+                name: "Hellspy",
+                description: `${item.title}\\n📦 ${sizeMb} MB`,
+                url: `${baseUrl}/play/${item.id}/${item.fileHash}`
+            };
+        });
 
-        // Return stream configuration
-        return {
-            name: "Hellspy",
-            description: `${item.title}\\n📦 ${sizeMb} MB`,
-            // Odkazujeme na náš lokální Express server endpoint pro the konkrétní video
-            // Addon SDK samo o sobě tohle nezvládne zpracovat relativně, musíme mu poslat plnou URL
-            // Během instalace pluginu to bude na `http://127.0.0.1:7000/play/:id/:hash`
-            url: `http://127.0.0.1:7000/play/${item.id}/${item.fileHash}`
-        };
-    });
-
-    return Promise.resolve({ streams });
+        return Promise.resolve({ streams });
+    } catch (e) {
+        return Promise.resolve({ streams: [{ name: "API Chyba", description: `Hellspy API havarovalo: ${e.message}`, url: "#" }] });
+    }
 });
 
 module.exports = builder.getInterface();
